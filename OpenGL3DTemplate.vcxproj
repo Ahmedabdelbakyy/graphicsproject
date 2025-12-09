@@ -82,7 +82,16 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="OpenGL3DTemplate.cpp" />
+    <ClCompile Include="Level1.cpp" />
+    <ClCompile Include="Level2.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Model_OBJ.cpp" />
+    <ClCompile Include="TextureBuilder.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GameConfig.h" />
+    <ClInclude Include="Model_OBJ.h" />
+    <ClInclude Include="TextureBuilder.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
