@@ -1,4 +1,4 @@
-##define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 
 // WINDOWS AUDIO & HEADERS
 #include <windows.h> // <--- MOVED TO TOP
