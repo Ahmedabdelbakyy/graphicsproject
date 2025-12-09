@@ -1,7 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 // WINDOWS AUDIO & HEADERS
-#include <windows.h> // <--- MOVED TO TOP
+#include <windows.h> 
 #include <mmsystem.h>
 #pragma comment(lib, "winmm.lib")
 
@@ -14,15 +14,16 @@
 #include <time.h>
 
 #define GLUT_DISABLE_ATEXIT_HACK
-#include <glut.h> // <--- BELOW WINDOWS.H
+#include <glut.h> 
 
 #include "GameConfig.h"
 
-namespace Level1 { // <--- START NAMESPACE
+namespace Level1 {
 
 	// Global Variables
 	float playerX = 0.0f;
 	float playerZ = 0.0f;
+	float playerY = 0.0f; // <--- NEW: For Jump
 	float playerRot = 0.0f;
 	int cameraMode = 1;
 	float crystalRot = 0.0f;
@@ -33,9 +34,16 @@ namespace Level1 { // <--- START NAMESPACE
 	bool levelComplete = false;
 	bool gameOver = false;
 
+	// Physics
+	bool isJumping = false;
+	float jumpSpeed = 0.0f;
+
+	// Modified Struct to support Animation
 	struct GameObject {
 		float x, z;
 		bool active;
+		bool collecting; // NEW: Is it currently shrinking?
+		float scale;     // NEW: Scale factor
 	};
 
 	std::vector<GameObject> crystals;
@@ -376,17 +384,32 @@ namespace Level1 { // <--- START NAMESPACE
 	Model_3DS modelCrystal;
 	Model_3DS modelTrap;
 
+	// --- NEW MOUSE FUNCTION ---
+	void Mouse(int button, int state, int x, int y) {
+		if (levelComplete || gameOver) return;
+		if (state == GLUT_DOWN) {
+			if (button == GLUT_LEFT_BUTTON && !isJumping) {
+				isJumping = true;
+				jumpSpeed = 0.6f;
+			}
+			if (button == GLUT_RIGHT_BUTTON) {
+				cameraMode = 1 - cameraMode; // Toggle 0 and 1
+			}
+		}
+	}
+
 	void Keyboard(unsigned char key, int x, int y) {
-		// NEW: Reset Logic
 		if (gameOver && (key == 'r' || key == 'R')) {
 			score = 0;
 			lives = 5;
-			playerX = 0;
-			playerZ = 0;
-			playerRot = 0;
+			playerX = 0; playerZ = 0; playerRot = 0; playerY = 0;
 			gameOver = false;
 			levelComplete = false;
-			for (size_t i = 0; i < crystals.size(); i++) crystals[i].active = true;
+			for (size_t i = 0; i < crystals.size(); i++) {
+				crystals[i].active = true;
+				crystals[i].collecting = false;
+				crystals[i].scale = 1.0f;
+			}
 			glutPostRedisplay();
 			return;
 		}
@@ -417,15 +440,33 @@ namespace Level1 { // <--- START NAMESPACE
 	void Anim() {
 		if (levelComplete || gameOver) return;
 
-		crystalRot += 0.5f;
+		crystalRot += 2.0f;
+
+		// --- JUMP LOGIC ---
+		if (isJumping) {
+			playerY += jumpSpeed;
+			jumpSpeed -= 0.04f; // Gravity
+			if (playerY <= 0) {
+				playerY = 0;
+				isJumping = false;
+			}
+		}
 
 		for (size_t i = 0; i < crystals.size(); i++) {
-			if (crystals[i].active) {
+			if (crystals[i].active && !crystals[i].collecting) {
 				float dist = sqrt(pow(playerX - crystals[i].x, 2) + pow(playerZ - crystals[i].z, 2));
 				if (dist < 3.0f) {
-					crystals[i].active = false;
+					crystals[i].collecting = true; // Start Animation
 					score++;
 					PlaySound(TEXT("collect.wav"), NULL, SND_ASYNC | SND_FILENAME);
+				}
+			}
+			// Animation Logic
+			if (crystals[i].collecting) {
+				crystals[i].scale -= 0.1f;
+				if (crystals[i].scale <= 0) {
+					crystals[i].active = false;
+					crystals[i].collecting = false;
 				}
 			}
 		}
@@ -444,16 +485,14 @@ namespace Level1 { // <--- START NAMESPACE
 			}
 		}
 
-		// *** THIS IS THE CRITICAL CHANGE FOR THE MERGE ***
+		// Win Condition
 		float portalDist = sqrt(pow(playerX - 0, 2) + pow(playerZ - (-200), 2));
 		if (portalDist < 10.0f && score >= 10) {
 			levelComplete = true;
 			printf("YOU WIN! LOADING LEVEL 2...\n");
 			PlaySound(TEXT("win.wav"), NULL, SND_ASYNC | SND_FILENAME);
-
-			// SWITCH TO LEVEL 2
 			currentLevel = 2;
-			Level2::Init(); // Start the next level
+			Level2::Init();
 		}
 
 		glutPostRedisplay();
@@ -562,11 +601,11 @@ namespace Level1 { // <--- START NAMESPACE
 			float angleRad = playerRot * 3.14159f / 180.0f;
 			float eyeX = playerX - cameraDist * sin(angleRad);
 			float eyeZ = playerZ - cameraDist * cos(angleRad);
-			float eyeY = cameraHeight;
-			gluLookAt(eyeX, eyeY, eyeZ, playerX, 4.0f, playerZ, 0.0f, 1.0f, 0.0f);
+			float eyeY = cameraHeight + playerY; // Add Jump Height
+			gluLookAt(eyeX, eyeY, eyeZ, playerX, 4.0f + playerY, playerZ, 0.0f, 1.0f, 0.0f);
 		}
 		else {
-			float eyeHeight = 1.6f;
+			float eyeHeight = 1.6f + playerY;
 			float angleRad = playerRot * 3.14159f / 180.0f;
 			float targetDist = 10.0f;
 			float targetX = playerX + targetDist * sin(angleRad);
@@ -586,8 +625,14 @@ namespace Level1 { // <--- START NAMESPACE
 		glPushMatrix(); glTranslatef(0, 0, -200); glRotatef(-90, 1, 0, 0); glScalef(0.5f, 0.5f, 0.5f); modelPortal.Draw(); glPopMatrix();
 
 		for (size_t i = 0; i < crystals.size(); i++) {
-			if (crystals[i].active) {
-				glPushMatrix(); glTranslatef(crystals[i].x, 3.0f, crystals[i].z); glRotatef(crystalRot, 0, 1, 0); glRotatef(-90, 1, 0, 0); glScalef(0.01f, 0.01f, 0.01f); modelCrystal.Draw(); glPopMatrix();
+			if (crystals[i].active || crystals[i].collecting) {
+				glPushMatrix();
+				glTranslatef(crystals[i].x, 3.0f, crystals[i].z);
+				glRotatef(crystalRot, 0, 1, 0);
+				glScalef(0.01f * crystals[i].scale, 0.01f * crystals[i].scale, 0.01f * crystals[i].scale); // Apply Animation
+				glRotatef(-90, 1, 0, 0);
+				modelCrystal.Draw();
+				glPopMatrix();
 			}
 		}
 		for (size_t i = 0; i < traps.size(); i++) {
@@ -595,14 +640,13 @@ namespace Level1 { // <--- START NAMESPACE
 		}
 
 		if (cameraMode == 1) {
-			glPushMatrix(); glTranslatef(playerX, 0, playerZ); glRotatef(playerRot, 0, 1, 0); glRotatef(-90, 1, 0, 0); glScalef(0.075f, 0.075f, 0.075f); glColor3f(0.7f, 0.7f, 0.7f); modelPlayer.Draw(); glPopMatrix();
+			glPushMatrix(); glTranslatef(playerX, playerY, playerZ); glRotatef(playerRot, 0, 1, 0); glRotatef(-90, 1, 0, 0); glScalef(0.075f, 0.075f, 0.075f); glColor3f(0.7f, 0.7f, 0.7f); modelPlayer.Draw(); glPopMatrix();
 		}
 
 		drawScore();
-		glutSwapBuffers(); // USE SWAP BUFFERS
+		glutSwapBuffers();
 	}
 
-	// RENAMED from main() to Init()
 	void Init() {
 		setupLighting();
 		srand(time(NULL));
@@ -617,17 +661,27 @@ namespace Level1 { // <--- START NAMESPACE
 		texSky = LoadTexture("sky.bmp", 255);
 		texPyramid = LoadTexture("pyramid.bmp", 255); modelPyramid.tex = texPyramid;
 		texPortal = LoadTexture("portal.bmp", 255); modelPortal.tex = texPortal;
-		texCrystal = LoadTexture("crystal.bmp", 255);
+		texCrystal = LoadTexture("crystal.bmp", 255); modelCrystal.tex = texCrystal;
+
 		texTrap = LoadTexture("trap.bmp", 255); modelTrap.tex = texTrap;
 		texPlayer = LoadTexture("robot.bmp", 255); modelPlayer.tex = texPlayer;
 
-		for (int i = 0; i < 50; i++) {
-			GameObject c; c.x = (rand() % 600) - 300; c.z = (rand() % 600) - 300; c.active = true; crystals.push_back(c);
+		// --- CHANGED: EXACTLY 10 CRYSTALS ---
+		for (int i = 0; i < 10; i++) {
+			GameObject c;
+			c.x = (rand() % 400) - 200; // Smaller range to make them findable
+			c.z = (rand() % 400) - 200;
+			c.active = true;
+			c.collecting = false;
+			c.scale = 1.0f;
+			crystals.push_back(c);
 		}
+
+		// Traps (Keeping existing logic)
 		float tPos[5][2] = { {0, -100}, {0, -150}, {50, -120}, {-50, -120}, {0, 50} };
 		for (int i = 0; i < 5; i++) {
 			GameObject t; t.x = tPos[i][0]; t.z = tPos[i][1]; t.active = true; traps.push_back(t);
 		}
 	}
 
-} // END NAMESPACE
+}

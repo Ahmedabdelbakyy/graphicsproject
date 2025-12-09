@@ -18,13 +18,12 @@
 #include <glut.h>
 
 // YOUR HELPERS
-
-#include "Model_OBJ.h"
+#include "Model_OBJ.h"  // <--- REVERTED to OBJ
 #include "GameConfig.h" 
 #include "TextureBuilder.h"
 
 #define M_PI 3.14159265358979323846
-namespace Level2 { // <--- START NAMESPACE
+namespace Level2 {
 
     // --- 1. GLOBAL VARIABLES ---
     GLuint texGround;
@@ -49,7 +48,7 @@ namespace Level2 { // <--- START NAMESPACE
     int cameraMode = 1;
 
     // Robot Model
-    Model_OBJ playerModel;
+    Model_OBJ playerModel; // <--- REVERTED to OBJ
 
     // Game Logic
     int score = 0;
@@ -87,6 +86,21 @@ namespace Level2 { // <--- START NAMESPACE
     // --- HELPER FUNCTIONS ---
     float toRad(float angle) { return angle * M_PI / 180.0f; }
 
+    // --- NEW MOUSE FUNCTION ---
+    void Mouse(int button, int state, int x, int y) {
+        if (gameOver || gameWon) return;
+        if (state == GLUT_DOWN) {
+            if (button == GLUT_LEFT_BUTTON && !isJumping) {
+                isJumping = true;
+                jumpSpeed = 0.5f;
+                PlaySound(TEXT("jump.wav"), NULL, SND_ASYNC | SND_FILENAME);
+            }
+            if (button == GLUT_RIGHT_BUTTON) {
+                cameraMode = 1 - cameraMode; // Toggle 0 and 1
+            }
+        }
+    }
+
     void drawText(std::string text, float x, float y) {
         glDisable(GL_TEXTURE_2D);
         glDisable(GL_LIGHTING);
@@ -122,7 +136,6 @@ namespace Level2 { // <--- START NAMESPACE
 
     bool checkWall(float newX, float newZ) {
         bool hit = false;
-
         // 5 Buildings (Solid Walls)
         if (newX > -22 && newX < -18 && newZ > -22 && newZ < -18) hit = true;
         else if (newX > 16 && newX < 24 && newZ > -34 && newZ < -26) hit = true;
@@ -130,7 +143,6 @@ namespace Level2 { // <--- START NAMESPACE
         else if (newX > 22 && newX < 28 && newZ > 17 && newZ < 23) hit = true;
         else if (newX > -5 && newX < 5 && newZ > -55 && newZ < -45) hit = true;
 
-        // 6 Barriers
         if (!hit) {
             for (int i = 0; i < 6; i++) {
                 float bX = barriers[i].x;
@@ -143,12 +155,9 @@ namespace Level2 { // <--- START NAMESPACE
                 }
             }
         }
-
         if (hit) {
-            // UPDATED PATH: removed textures/
             PlaySound(TEXT("hit.wav"), NULL, SND_ASYNC | SND_FILENAME);
         }
-
         return hit;
     }
 
@@ -359,7 +368,6 @@ namespace Level2 { // <--- START NAMESPACE
             }
             else if (orbs[i].active && checkCollision(orbs[i].x, orbs[i].z, 3.0)) {
                 orbs[i].collecting = true;
-                // UPDATED PATH: removed textures/
                 PlaySound(TEXT("collect.wav"), NULL, SND_ASYNC | SND_FILENAME);
             }
             if (orbs[i].active) drawOrb(orbs[i].x, orbs[i].z, orbs[i].scale);
@@ -374,7 +382,6 @@ namespace Level2 { // <--- START NAMESPACE
         for (int i = 0; i < 3; i++) {
             if (checkCollision(drones[i].currentX, drones[i].startX, 2.0)) {
                 if (playerX != 0.0f || playerZ != 15.0f) {
-                    // UPDATED PATH: removed textures/
                     PlaySound(TEXT("hit.wav"), NULL, SND_ASYNC | SND_FILENAME);
                     playerX = 0.0f; playerZ = 15.0f; score = 0;
                     for (int j = 0; j < 10; j++) { orbs[j].active = true; orbs[j].scale = 1.0f; }
@@ -424,9 +431,8 @@ namespace Level2 { // <--- START NAMESPACE
         glutPostRedisplay();
     }
 
-    // RENAMED from Timer to Anim
     void Anim() {
-        if (currentLevel != 2) return; // Only run if active
+        if (currentLevel != 2) return;
 
         if (!gameOver && !gameWon) {
             gameTime -= 1.0f / 60.0f;
@@ -449,10 +455,8 @@ namespace Level2 { // <--- START NAMESPACE
             }
         }
         glutPostRedisplay();
-        // removed glutTimerFunc call
     }
 
-    // RENAMED from InitGL to Init
     void Init() {
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glEnable(GL_DEPTH_TEST);
@@ -461,11 +465,11 @@ namespace Level2 { // <--- START NAMESPACE
         glEnable(GL_LIGHT1);
         glEnable(GL_COLOR_MATERIAL);
 
-        // UPDATED PATHS: removed textures/
         loadBMP(&texGround, "metal.bmp", true);
         loadBMP(&texSky, "sky2.bmp", false);
         loadBMP(&texTech, "box.bmp", true);
 
+        // --- REVERTED to OBJ loading ---
         loadBMP(&texRobot, "metal.bmp", true);
         playerModel.Load("robot.obj", texRobot);
 
@@ -483,4 +487,4 @@ namespace Level2 { // <--- START NAMESPACE
         glMatrixMode(GL_MODELVIEW);
     }
 
-} // <--- END NAMESPACE
+}
